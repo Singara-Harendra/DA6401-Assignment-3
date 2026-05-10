@@ -6,7 +6,6 @@ wandb
 datasets
 spacy
 tqdm
-torchtext
 evaluate
-sacrebleu
+wandb
 gdown
