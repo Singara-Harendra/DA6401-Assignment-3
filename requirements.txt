@@ -7,5 +7,5 @@ datasets
 spacy
 tqdm
 evaluate
-wandb
+sacrebleu
 gdown

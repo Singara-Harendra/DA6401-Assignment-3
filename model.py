@@ -310,10 +310,15 @@ class Transformer(nn.Module):
             counter = Counter()
             for toks in tok_lists:
                 counter.update(toks)
+            
+            # CRITICAL FIX: Sort by frequency, then alphabetically to perfectly match Kaggle training!
+            sorted_tokens = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
+            
             specials = ['<unk>', '<pad>', '<sos>', '<eos>']
             stoi = {t: i for i, t in enumerate(specials)}
             idx  = len(specials)
-            for word, freq in counter.most_common():
+            
+            for word, freq in sorted_tokens:
                 if freq >= min_freq and word not in stoi:
                     stoi[word] = idx
                     idx += 1
