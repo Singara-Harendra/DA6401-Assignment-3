@@ -567,6 +567,22 @@ class Transformer(nn.Module):
         if getattr(self, "src_tokenizer", None) is None or getattr(self, "tgt_vocab", None) is None or getattr(self, "src_vocab", None) is None:
             print("Autograder Defense: Instantiating vocabularies on the fly...")
             import spacy
+            from spacy.cli import download
+            
+            # 1. Programmatically download missing spacy models
+            try:
+                spacy.load('de_core_news_sm')
+            except OSError:
+                print("Downloading German Spacy model...")
+                download('de_core_news_sm')
+                
+            try:
+                spacy.load('en_core_web_sm')
+            except OSError:
+                print("Downloading English Spacy model...")
+                download('en_core_web_sm')
+
+            # 2. Build the dataset and vocab
             from dataset import Multi30kDataset
             ds = Multi30kDataset()
             ds.build_vocab()
@@ -579,7 +595,6 @@ class Transformer(nn.Module):
         device = next(self.parameters()).device
 
         # Tokenise and numericalize source sentence
-        # Notice .lower() is removed to perfectly match dataset.py preprocessing
         tokens  = [tok.text for tok in self.src_tokenizer(src_sentence)]
         src_stoi = _vocab_get_stoi(self.src_vocab)
         tgt_stoi = _vocab_get_stoi(self.tgt_vocab)
