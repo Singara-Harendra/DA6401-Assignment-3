@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from typing import Optional
 
 import wandb
-from evaluate import load as load_metric
+#from evaluate import load as load_metric
 
 from model import Transformer, make_src_mask, make_tgt_mask
 
@@ -260,6 +260,8 @@ def evaluate_bleu(
     Returns:
         bleu_score : Corpus-level BLEU (float, range 0–100).
     """
+    from evaluate import load as load_metric
+    
     bleu_metric = load_metric("sacrebleu")
     model.eval()
 
