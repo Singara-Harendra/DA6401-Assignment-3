@@ -1,23 +1,6 @@
 """
 model.py — Transformer Architecture
 DA6401 Assignment 3: "Attention Is All You Need"
-
-AUTOGRADER CONTRACT (DO NOT MODIFY SIGNATURES):
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  scaled_dot_product_attention(Q, K, V, mask) → (out, weights)  │
-  │  MultiHeadAttention.forward(q, k, v, mask)   → Tensor          │
-  │  PositionalEncoding.forward(x)               → Tensor          │
-  │  make_src_mask(src, pad_idx)                 → BoolTensor      │
-  │  make_tgt_mask(tgt, pad_idx)                 → BoolTensor      │
-  │  Transformer.encode(src, src_mask)           → Tensor          │
-  │  Transformer.decode(memory,src_m,tgt,tgt_m)  → Tensor          │
-  │  Transformer.infer(german_sentence)          → str             │
-  └─────────────────────────────────────────────────────────────────┘
-
-AUTOGRADER USAGE PATTERN:
-    model = Transformer()          # zero-arg construction
-    model.eval()
-    english = model.infer(german)  # end-to-end single sentence
 """
 
 import math
@@ -243,7 +226,7 @@ class Transformer(nn.Module):
         dropout:         float = 0.1,
         pad_idx:         int   = 1,
         min_freq:        int   = 2,
-        max_infer_len:   int   = 100,    # Matches original evaluation
+        max_infer_len:   int   = 100,
         load_weights:    bool  = True,
         checkpoint_path: str   = CHECKPOINT_FILENAME,
     ) -> None:
@@ -285,7 +268,6 @@ class Transformer(nn.Module):
 
     @staticmethod
     def _load_spacy():
-        """Load de + en spaCy models, auto-downloading if missing."""
         import spacy
         def load_model(name):
             try:
@@ -302,23 +284,21 @@ class Transformer(nn.Module):
         from datasets import load_dataset
         raw = load_dataset('bentrevett/multi30k', split='train')
 
-        # NO .lower() HERE - Matches Kaggle Training Exactly
-        src_tok_lists = [[t.text for t in self.nlp_de(ex['de'])] for ex in raw]
-        tgt_tok_lists = [[t.text for t in self.nlp_en(ex['en'])] for ex in raw]
+        # FIX: Put .lower() back in to perfectly match your dataset.py
+        src_tok_lists = [[t.text.lower() for t in self.nlp_de(ex['de'])] for ex in raw]
+        tgt_tok_lists = [[t.text.lower() for t in self.nlp_en(ex['en'])] for ex in raw]
 
         def _make_vocab(tok_lists):
             counter = Counter()
             for toks in tok_lists:
                 counter.update(toks)
             
-            # CRITICAL FIX: Sort by frequency, then alphabetically to perfectly match Kaggle training!
-            sorted_tokens = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
-            
+            # FIX: Use most_common() without alphabetical sorting to match your dataset.py
             specials = ['<unk>', '<pad>', '<sos>', '<eos>']
             stoi = {t: i for i, t in enumerate(specials)}
             idx  = len(specials)
             
-            for word, freq in sorted_tokens:
+            for word, freq in counter.most_common():
                 if freq >= min_freq and word not in stoi:
                     stoi[word] = idx
                     idx += 1
@@ -333,15 +313,16 @@ class Transformer(nn.Module):
                 import gdown
                 gdown.download(id=GDRIVE_FILE_ID, output=checkpoint_path, quiet=False)
             except Exception as e:
-                pass
+                print(f"[Transformer] Failed to download: {e}")
 
         if os.path.exists(checkpoint_path):
             try:
                 ckpt = torch.load(checkpoint_path, map_location='cpu')
                 state = ckpt['model_state_dict'] if isinstance(ckpt, dict) and 'model_state_dict' in ckpt else ckpt
                 self.load_state_dict(state)
+                print("[Transformer] Weights loaded successfully!")
             except Exception as e:
-                pass
+                print(f"[Transformer] CRITICAL ERROR LOADING WEIGHTS: {e}")
 
     # ── AUTOGRADER HOOKS ──────────────────────────────────────────────
 
@@ -371,8 +352,8 @@ class Transformer(nn.Module):
         tgt_sos = tgt_stoi.get('<sos>', 2)
         tgt_eos = tgt_stoi.get('<eos>', 3)
 
-        # NO .lower() HERE - Matches Kaggle Training Exactly
-        tokens     = [tok.text for tok in self.nlp_de(src_sentence)]
+        # FIX: Use .lower() here too to match the vocab builder
+        tokens     = [tok.text.lower() for tok in self.nlp_de(src_sentence)]
         src_ids    = [src_sos] + [src_stoi.get(t, unk_idx) for t in tokens] + [src_eos]
         src_tensor = torch.tensor(src_ids, dtype=torch.long, device=device).unsqueeze(0)
         src_mask   = make_src_mask(src_tensor, pad_idx=self.pad_idx)
