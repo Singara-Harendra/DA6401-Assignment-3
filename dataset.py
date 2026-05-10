@@ -6,11 +6,69 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from datasets import load_dataset
-from torchtext.vocab import build_vocab_from_iterator
+from collections import Counter, OrderedDict
 
 # Special token constants
 UNK_IDX, PAD_IDX, SOS_IDX, EOS_IDX = 0, 1, 2, 3
 SPECIAL_TOKENS = ['<unk>', '<pad>', '<sos>', '<eos>']
+
+# ══════════════════════════════════════════════════════════════════════
+#  CUSTOM VOCAB BUILDER (Replaces torchtext)
+# ══════════════════════════════════════════════════════════════════════
+class SimpleVocab:
+    """A pure-Python replacement for torchtext.vocab.Vocab"""
+    def __init__(self, token_to_idx, idx_to_token):
+        self.stoi = token_to_idx
+        self.itos = idx_to_token
+        self.default_index = 0
+
+    def __getitem__(self, token):
+        return self.stoi.get(token, self.default_index)
+
+    def set_default_index(self, index):
+        self.default_index = index
+
+    def get_stoi(self):
+        return self.stoi
+
+    def get_itos(self):
+        return self.itos
+
+    def __len__(self):
+        return len(self.itos)
+
+def build_vocab_from_iterator(iterator, min_freq=1, specials=None):
+    """Builds a vocabulary dictionary from an iterator of tokens."""
+    counter = Counter()
+    for tokens in iterator:
+        counter.update(tokens)
+
+    # Sort by frequency, then alphabetically
+    sorted_tokens = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
+
+    token_to_idx = OrderedDict()
+    idx_to_token = []
+    idx = 0
+
+    if specials:
+        for tok in specials:
+            token_to_idx[tok] = idx
+            idx_to_token.append(tok)
+            idx += 1
+
+    for tok, freq in sorted_tokens:
+        if freq >= min_freq:
+            if tok not in token_to_idx:
+                token_to_idx[tok] = idx
+                idx_to_token.append(tok)
+                idx += 1
+
+    return SimpleVocab(token_to_idx, idx_to_token)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  DATASET & DATALOADER
+# ══════════════════════════════════════════════════════════════════════
 
 class TranslationDataset(Dataset):
     def __init__(self, data):
@@ -32,7 +90,6 @@ def collate_fn(batch):
     src_batch = pad_sequence(src_batch, padding_value=PAD_IDX, batch_first=True)
     tgt_batch = pad_sequence(tgt_batch, padding_value=PAD_IDX, batch_first=True)
     return src_batch, tgt_batch
-
 
 class Multi30kDataset:
     def __init__(self):
@@ -67,22 +124,19 @@ class Multi30kDataset:
         self.src_vocab = build_vocab_from_iterator(
             self.yield_tokens(train_data, 'de'),
             min_freq=2,
-            specials=SPECIAL_TOKENS,
-            special_first=True
+            specials=SPECIAL_TOKENS
         )
         self.src_vocab.set_default_index(UNK_IDX)
 
         self.tgt_vocab = build_vocab_from_iterator(
             self.yield_tokens(train_data, 'en'),
             min_freq=2,
-            specials=SPECIAL_TOKENS,
-            special_first=True
+            specials=SPECIAL_TOKENS
         )
         self.tgt_vocab.set_default_index(UNK_IDX)
 
     def process_data(self):
         print("Numericalizing dataset...")
-        # Map huggingface 'validation' split to our expected 'val' split
         for split in ['train', 'validation', 'test']:
             dict_split = 'val' if split == 'validation' else split
             self.processed_data[dict_split] = []
@@ -91,7 +145,6 @@ class Multi30kDataset:
                 src_toks = self.tokenize_de(item['de'])
                 tgt_toks = self.tokenize_en(item['en'])
                 
-                # Prepend <sos>, numericalize, append <eos>
                 src_tensor = [SOS_IDX] + [self.src_vocab[tok] for tok in src_toks] + [EOS_IDX]
                 tgt_tensor = [SOS_IDX] + [self.tgt_vocab[tok] for tok in tgt_toks] + [EOS_IDX]
                 
