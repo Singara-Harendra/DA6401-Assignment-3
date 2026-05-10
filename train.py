@@ -218,6 +218,35 @@ def greedy_decode(
 #  BLEU EVALUATION
 # ══════════════════════════════════════════════════════════════════════
 
+def _vocab_lookup_token(tgt_vocab, idx: int) -> str:
+    """
+    Look up a token string by index from a vocab object.
+    Supports both torchtext (.get_itos()) and autograder-contract APIs
+    (.itos attribute or .lookup_token() method).
+    """
+    if hasattr(tgt_vocab, "lookup_token"):
+        return tgt_vocab.lookup_token(idx)
+    elif hasattr(tgt_vocab, "itos"):
+        return tgt_vocab.itos[idx]
+    else:
+        # torchtext build_vocab_from_iterator Vocab
+        return tgt_vocab.get_itos()[idx]
+
+
+def _vocab_get_stoi(tgt_vocab) -> dict:
+    """
+    Get the string-to-index dict from a vocab object.
+    Supports both torchtext (.get_stoi()) and autograder-contract APIs
+    (.stoi attribute).
+    """
+    if hasattr(tgt_vocab, "get_stoi"):
+        return tgt_vocab.get_stoi()
+    elif hasattr(tgt_vocab, "stoi"):
+        return tgt_vocab.stoi
+    else:
+        raise AttributeError("Vocab object has neither get_stoi() nor .stoi")
+
+
 def evaluate_bleu(
     model: Transformer,
     test_dataloader: DataLoader,
@@ -231,16 +260,19 @@ def evaluate_bleu(
     Returns:
         bleu_score : Corpus-level BLEU (float, range 0–100).
     """
-    bleu_metric = load_metric("bleu")
+    bleu_metric = load_metric("sacrebleu")
     model.eval()
 
-    pad_idx = model.pad_idx
-    sos_idx = tgt_vocab.get_stoi()["<sos>"]
-    eos_idx = tgt_vocab.get_stoi()["<eos>"]
-    itos    = tgt_vocab.get_itos()
+    pad_idx  = model.pad_idx
+    stoi     = _vocab_get_stoi(tgt_vocab)
+    sos_idx  = stoi["<sos>"]
+    eos_idx  = stoi["<eos>"]
 
-    all_predictions  = []
-    all_references   = []
+    # Build a set of special indices to skip during detokenisation
+    special_idx = {sos_idx, eos_idx, pad_idx}
+
+    all_predictions = []   # list of strings  (one per sentence)
+    all_references  = []   # list of [string] (one ref per sentence)
 
     with torch.no_grad():
         for src, tgt in test_dataloader:
@@ -259,29 +291,34 @@ def evaluate_bleu(
                     device=device,
                 )
 
-                # Convert prediction tokens to words
+                # Convert prediction token indices → words → sentence string
                 pred_tokens = pred.squeeze(0).tolist()
-                pred_words = [
-                    itos[t] for t in pred_tokens
-                    if t not in (sos_idx, eos_idx, pad_idx)
+                pred_words  = [
+                    _vocab_lookup_token(tgt_vocab, t)
+                    for t in pred_tokens
+                    if t not in special_idx
                 ]
+                pred_sentence = " ".join(pred_words)
 
-                # Convert reference tokens to words
+                # Convert reference token indices → words → sentence string
                 ref_tokens = tgt[i].tolist()
-                ref_words = [
-                    itos[t] for t in ref_tokens
-                    if t not in (sos_idx, eos_idx, pad_idx)
+                ref_words  = [
+                    _vocab_lookup_token(tgt_vocab, t)
+                    for t in ref_tokens
+                    if t not in special_idx
                 ]
+                ref_sentence = " ".join(ref_words)
 
-                all_predictions.append(pred_words)
-                all_references.append([ref_words])   # BLEU expects list of refs
+                # sacrebleu expects: predictions=[str], references=[[str]]
+                all_predictions.append(pred_sentence)
+                all_references.append([ref_sentence])
 
     result = bleu_metric.compute(
         predictions=all_predictions,
         references=all_references,
     )
-    # HuggingFace evaluate returns 0–1; multiply by 100
-    bleu_score = result["bleu"] * 100.0
+    # sacrebleu returns score in 0–100 directly
+    bleu_score = float(result["score"])
     return bleu_score
 
 
@@ -310,7 +347,7 @@ def save_checkpoint(
         "N":              model.N,
         "num_heads":      model.num_heads,
         "d_ff":           model.d_ff,
-        "dropout":        0.1,   # cannot introspect dropout after construction
+        "dropout":        model.dropout_p,
         "pad_idx":        model.pad_idx,
     }
     torch.save(
@@ -381,7 +418,7 @@ def run_training_experiment() -> None:
     wandb.init(
         project="da6401-a3",
         config=CONFIG,
-        name="baseline-noam-postln",
+        name="baseline-noam-ls01",   # intuitive: scheduler + label-smoothing value
     )
     cfg = wandb.config
 
