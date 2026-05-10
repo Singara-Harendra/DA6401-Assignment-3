@@ -16,6 +16,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # ══════════════════════════════════════════════════════════════════════
+#  GLOBAL CACHE (Prevents Gradescope from Timing Out or OOMing)
+# ══════════════════════════════════════════════════════════════════════
+_GLOBAL_SPACY = {}
+_GLOBAL_VOCAB = {}
+
+# ══════════════════════════════════════════════════════════════════════
 #  GOOGLE DRIVE FILE ID
 # ══════════════════════════════════════════════════════════════════════
 GDRIVE_FILE_ID      = "101OnYVLTOpGswpnYfPtKAObVyWIqmMtG"
@@ -236,10 +242,10 @@ class Transformer(nn.Module):
         self.pad_idx       = pad_idx
         self.max_infer_len = max_infer_len
 
-        # 1. spaCy tokenisers (Auto-download defense)
+        # 1. spaCy tokenisers (With Global Caching)
         self.nlp_de, self.nlp_en = self._load_spacy()
 
-        # 2. Vocabularies
+        # 2. Vocabularies (With Global Caching)
         self.src_vocab, self.tgt_vocab = self._build_vocabs(min_freq)
         src_vocab_size = len(self.src_vocab['stoi'])
         tgt_vocab_size = len(self.tgt_vocab['stoi'])
@@ -268,6 +274,10 @@ class Transformer(nn.Module):
 
     @staticmethod
     def _load_spacy():
+        global _GLOBAL_SPACY
+        if "de" in _GLOBAL_SPACY and "en" in _GLOBAL_SPACY:
+            return _GLOBAL_SPACY["de"], _GLOBAL_SPACY["en"]
+
         import spacy
         def load_model(name):
             try:
@@ -278,34 +288,53 @@ class Transformer(nn.Module):
                 import importlib
                 importlib.reload(spacy)
                 return spacy.load(name)
-        return load_model('de_core_news_sm'), load_model('en_core_web_sm')
+        
+        de_model = load_model('de_core_news_sm')
+        en_model = load_model('en_core_web_sm')
+        _GLOBAL_SPACY["de"] = de_model
+        _GLOBAL_SPACY["en"] = en_model
+        return de_model, en_model
 
     def _build_vocabs(self, min_freq: int):
+        global _GLOBAL_VOCAB
+        if "src" in _GLOBAL_VOCAB and "tgt" in _GLOBAL_VOCAB:
+            return _GLOBAL_VOCAB["src"], _GLOBAL_VOCAB["tgt"]
+
         from datasets import load_dataset
         raw = load_dataset('bentrevett/multi30k', split='train')
 
-        # FIX: Put .lower() back in to perfectly match your dataset.py
-        src_tok_lists = [[t.text.lower() for t in self.nlp_de(ex['de'])] for ex in raw]
-        tgt_tok_lists = [[t.text.lower() for t in self.nlp_en(ex['en'])] for ex in raw]
+        print("[Transformer] Tokenizing dataset using fast nlp.pipe...")
+        de_texts = [ex['de'] for ex in raw]
+        en_texts = [ex['en'] for ex in raw]
+
+        # MASSIVE SPEEDUP: Using .pipe() handles tokenization 10x faster
+        src_tok_lists = [[t.text for t in doc] for doc in self.nlp_de.pipe(de_texts, batch_size=1000)]
+        tgt_tok_lists = [[t.text for t in doc] for doc in self.nlp_en.pipe(en_texts, batch_size=1000)]
 
         def _make_vocab(tok_lists):
             counter = Counter()
             for toks in tok_lists:
                 counter.update(toks)
             
-            # FIX: Use most_common() without alphabetical sorting to match your dataset.py
+            sorted_tokens = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
+            
             specials = ['<unk>', '<pad>', '<sos>', '<eos>']
             stoi = {t: i for i, t in enumerate(specials)}
             idx  = len(specials)
             
-            for word, freq in counter.most_common():
+            for word, freq in sorted_tokens:
                 if freq >= min_freq and word not in stoi:
                     stoi[word] = idx
                     idx += 1
             itos = {i: t for t, i in stoi.items()}
             return {'stoi': stoi, 'itos': itos}
 
-        return _make_vocab(src_tok_lists), _make_vocab(tgt_tok_lists)
+        src_vocab = _make_vocab(src_tok_lists)
+        tgt_vocab = _make_vocab(tgt_tok_lists)
+        
+        _GLOBAL_VOCAB["src"] = src_vocab
+        _GLOBAL_VOCAB["tgt"] = tgt_vocab
+        return src_vocab, tgt_vocab
 
     def _download_and_load(self, checkpoint_path: str):
         if not os.path.exists(checkpoint_path):
@@ -352,8 +381,7 @@ class Transformer(nn.Module):
         tgt_sos = tgt_stoi.get('<sos>', 2)
         tgt_eos = tgt_stoi.get('<eos>', 3)
 
-        # FIX: Use .lower() here too to match the vocab builder
-        tokens     = [tok.text.lower() for tok in self.nlp_de(src_sentence)]
+        tokens     = [tok.text for tok in self.nlp_de(src_sentence)]
         src_ids    = [src_sos] + [src_stoi.get(t, unk_idx) for t in tokens] + [src_eos]
         src_tensor = torch.tensor(src_ids, dtype=torch.long, device=device).unsqueeze(0)
         src_mask   = make_src_mask(src_tensor, pad_idx=self.pad_idx)
