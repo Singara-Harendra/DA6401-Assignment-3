@@ -17,6 +17,7 @@ AUTOGRADER CONTRACT (DO NOT MODIFY SIGNATURES):
 import math
 import copy
 import os
+import gdown
 from typing import Optional, Tuple
 
 import torch
@@ -458,6 +459,8 @@ class Transformer(nn.Module):
 
         # Optionally load checkpoint
         if checkpoint_path is not None:
+            # ---> PASTE YOUR GOOGLE DRIVE FILE ID HERE <---
+            gdown.download(id="101OnYVLTOpGswpnYfPtKAObVyWIqmMtG", output=checkpoint_path, quiet=False)
             self._load_from_checkpoint(checkpoint_path)
 
         # Store tokenizer/vocab references (set externally before calling infer)
