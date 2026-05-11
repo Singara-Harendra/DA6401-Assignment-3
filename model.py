@@ -480,16 +480,16 @@ class Transformer(nn.Module):
         # Load spacy tokenizers
         try:
             self.spacy_de = spacy.load("de_core_news_sm")
-        except Exception:
-            import subprocess
-            subprocess.run(["python", "-m", "spacy", "download", "de_core_news_sm"])
+        except OSError:
+            from spacy.cli import download as spacy_download
+            spacy_download("de_core_news_sm")
             self.spacy_de = spacy.load("de_core_news_sm")
 
         try:
             self.spacy_en = spacy.load("en_core_web_sm")
-        except Exception:
-            import subprocess
-            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+        except OSError:
+            from spacy.cli import download as spacy_download
+            spacy_download("en_core_web_sm")
             self.spacy_en = spacy.load("en_core_web_sm")
 
     def _load_weights(self, checkpoint_path):
