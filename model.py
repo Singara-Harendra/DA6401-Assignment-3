@@ -391,7 +391,7 @@ class Transformer(nn.Module):
     # Vocab file (.pkl) drive ID (src_vocab + tgt_vocab pickled):
     #VOCAB_DRIVE_ID   = "YOUR_VOCAB_FILE_DRIVE_ID"
     # ────────────────────────────────────────────────────────────────────
-
+    # 6th model outputs
     WEIGHT_DRIVE_ID  = "1zx2w7l1_gV7czvTlAI3gI2-rr-86xYCR"
     # Vocab file (.pkl) drive ID (src_vocab + tgt_vocab pickled):
     VOCAB_DRIVE_ID   = "18-QctWQDocLWkE1dh4F2Ch7vE1XzW2Wf" 
