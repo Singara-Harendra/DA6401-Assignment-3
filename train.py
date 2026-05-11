@@ -304,12 +304,12 @@ def run_training_experiment(config_overrides: dict = None) -> None:
     # ── Default config ───────────────────────────────────────────────
     config = {
         "d_model":       256,
-        "N":             4, #3
+        "N":             3,
         "num_heads":     8,
-        "d_ff":          1024, # 512
-        "dropout":       0.25,     
-        "batch_size":    128,   #  64  
-        "num_epochs":    30,    #   40
+        "d_ff":          512,
+        "dropout":       0.2,
+        "batch_size":    128,
+        "num_epochs":    30,     
         "warmup_steps":  1500,
         "label_smoothing": 0.1,
         "use_noam":      True,
