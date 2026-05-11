@@ -309,11 +309,11 @@ def run_training_experiment(config_overrides: dict = None) -> None:
         "d_ff":          512,
         "dropout":       0.1,
         "batch_size":    128,
-        "num_epochs":    20,
+        "num_epochs":    30,     # <--- INCREASED TO 30 EPOCHS
         "warmup_steps":  4000,
         "label_smoothing": 0.1,
         "use_noam":      True,
-        "use_scaling":   True,   # ablation: set False to remove 1/√dk
+        "use_scaling":   True,   
         "max_len":       100,
     }
     if config_overrides:
@@ -375,7 +375,7 @@ def run_training_experiment(config_overrides: dict = None) -> None:
     )
 
     # ── Training loop ─────────────────────────────────────────────────
-    best_val_loss = float("inf")
+    best_val_bleu = -1.0    # <--- NOW TRACKING BEST BLEU SCORE
     for epoch in range(cfg.num_epochs):
         print(f"\n[Epoch {epoch+1}/{cfg.num_epochs}]")
 
@@ -390,11 +390,9 @@ def run_training_experiment(config_overrides: dict = None) -> None:
             epoch_num=epoch, is_train=False, device=device,
         )
 
-        # BLEU on val every 5 epochs
-        val_bleu = 0.0
-        if (epoch + 1) % 5 == 0:
-            val_bleu = evaluate_bleu(model, val_loader, tgt_vocab,
-                                     device=device, max_len=cfg.max_len)
+        # <--- EVALUATING BLEU EVERY EPOCH TO FIND THE TRUE MAXIMUM
+        val_bleu = evaluate_bleu(model, val_loader, tgt_vocab,
+                                 device=device, max_len=cfg.max_len)
 
         print(f"  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
               f"val_bleu={val_bleu:.2f}")
@@ -407,9 +405,9 @@ def run_training_experiment(config_overrides: dict = None) -> None:
             "lr":         optimizer.param_groups[0]["lr"],
         })
 
-        # Save best checkpoint
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        # <--- SAVE CHECKPOINT BASED ON HIGHEST BLEU SCORE
+        if val_bleu > best_val_bleu:
+            best_val_bleu = val_bleu
             save_checkpoint(model, optimizer, scheduler or torch.optim.Adam([]),
                             epoch, path="best_model.pt")
 
