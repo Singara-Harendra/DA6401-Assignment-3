@@ -387,9 +387,9 @@ class Transformer(nn.Module):
 
     # ── Google Drive file IDs — FILL THESE IN after you train ──────────
     # Weight file (.pt) drive ID:
-    WEIGHT_DRIVE_ID  = "1evwsUXhuih8Ili9VW2dVT9a03_c-aOVj"
+    WEIGHT_DRIVE_ID  = "YOUR_WEIGHT_FILE_DRIVE_ID"
     # Vocab file (.pkl) drive ID (src_vocab + tgt_vocab pickled):
-    VOCAB_DRIVE_ID   = "1jRW_mB6f4pekD52qd9PC4aM4AQ5iy2wk"
+    VOCAB_DRIVE_ID   = "YOUR_VOCAB_FILE_DRIVE_ID"
     # ────────────────────────────────────────────────────────────────────
 
     def __init__(
@@ -480,16 +480,16 @@ class Transformer(nn.Module):
         # Load spacy tokenizers
         try:
             self.spacy_de = spacy.load("de_core_news_sm")
-        except OSError:
-            from spacy.cli import download as spacy_download
-            spacy_download("de_core_news_sm")
+        except Exception:
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", "de_core_news_sm"])
             self.spacy_de = spacy.load("de_core_news_sm")
 
         try:
             self.spacy_en = spacy.load("en_core_web_sm")
-        except OSError:
-            from spacy.cli import download as spacy_download
-            spacy_download("en_core_web_sm")
+        except Exception:
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
             self.spacy_en = spacy.load("en_core_web_sm")
 
     def _load_weights(self, checkpoint_path):
