@@ -434,7 +434,7 @@ class Transformer(nn.Module):
 
         # Weight tying: share embedding weights with projection
         # (optional but common practice)
-        # self.projection.weight = self.tgt_embed.weight
+        self.projection.weight = self.tgt_embed.weight
 
         # Xavier/Glorot init
         self._init_weights()

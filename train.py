@@ -307,10 +307,10 @@ def run_training_experiment(config_overrides: dict = None) -> None:
         "N":             3,
         "num_heads":     8,
         "d_ff":          512,
-        "dropout":       0.1,
+        "dropout":       0.2,
         "batch_size":    128,
-        "num_epochs":    30,     # <--- INCREASED TO 30 EPOCHS
-        "warmup_steps":  4000,
+        "num_epochs":    30,     
+        "warmup_steps":  1500,
         "label_smoothing": 0.1,
         "use_noam":      True,
         "use_scaling":   True,   
