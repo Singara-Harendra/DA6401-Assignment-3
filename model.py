@@ -385,11 +385,11 @@ class Transformer(nn.Module):
     loaded inside __init__.
     """
 
-    # ── Google Drive file IDs — FILL THESE IN after you train ──────────
+       # ── Google Drive file IDs — FILL THESE IN after you train ──────────
     # Weight file (.pt) drive ID:
-    WEIGHT_DRIVE_ID  = "1DO6WNV5N2qANRIQ8LnSa7Rann1Z5oyRj"
+    WEIGHT_DRIVE_ID  = "YOUR_WEIGHT_FILE_DRIVE_ID"
     # Vocab file (.pkl) drive ID (src_vocab + tgt_vocab pickled):
-    VOCAB_DRIVE_ID   = "19Xrh7VTHunJoXDvqnPX7Bcjk8fhWA741"
+    VOCAB_DRIVE_ID   = "YOUR_VOCAB_FILE_DRIVE_ID"
     # ────────────────────────────────────────────────────────────────────
 
     def __init__(
