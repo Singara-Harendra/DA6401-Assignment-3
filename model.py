@@ -35,24 +35,8 @@ def scaled_dot_product_attention(
     K: torch.Tensor,
     V: torch.Tensor,
     mask: Optional[torch.Tensor] = None,
+    dropout: Optional[nn.Module] = None,  # 🎯 1. ADD THIS OPTIONAL ARGUMENT
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Compute Scaled Dot-Product Attention.
-
-        Attention(Q, K, V) = softmax( Q·Kᵀ / √dₖ ) · V
-
-    Args:
-        Q    : Query tensor,  shape (..., seq_q, d_k)
-        K    : Key tensor,    shape (..., seq_k, d_k)
-        V    : Value tensor,  shape (..., seq_k, d_v)
-        mask : Optional Boolean mask, shape broadcastable to
-               (..., seq_q, seq_k).
-               Positions where mask is True are MASKED OUT.
-
-    Returns:
-        output : Attended output,   shape (..., seq_q, d_v)
-        attn_w : Attention weights, shape (..., seq_q, seq_k)
-    """
     d_k = Q.size(-1)
     # Scaled scores: (..., seq_q, seq_k)
     scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(d_k)
@@ -64,9 +48,12 @@ def scaled_dot_product_attention(
     # Replace NaN (rows that are all -inf) with 0
     attn_w = torch.nan_to_num(attn_w, nan=0.0)
 
+    # 🎯 2. APPLY DROPOUT TO ATTENTION WEIGHTS HERE
+    if dropout is not None:
+        attn_w = dropout(attn_w)
+
     output = torch.matmul(attn_w, V)
     return output, attn_w
-
 
 # ══════════════════════════════════════════════════════════════════════
 #  MASK HELPERS
@@ -171,29 +158,21 @@ class MultiHeadAttention(nn.Module):
         value: torch.Tensor,
         mask:  Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """
-        Args:
-            query : shape [batch, seq_q, d_model]
-            key   : shape [batch, seq_k, d_model]
-            value : shape [batch, seq_k, d_model]
-            mask  : Optional BoolTensor broadcastable to
-                    [batch, num_heads, seq_q, seq_k]
-
-        Returns:
-            output : shape [batch, seq_q, d_model]
-        """
+        
         Q = self._split_heads(self.W_q(query))   # [batch, h, seq_q, d_k]
         K = self._split_heads(self.W_k(key))     # [batch, h, seq_k, d_k]
         V = self._split_heads(self.W_v(value))   # [batch, h, seq_k, d_k]
 
-        # Expand mask for heads dim if needed
         if mask is not None and mask.dim() == 4 and mask.size(1) == 1:
             mask = mask.expand(-1, self.num_heads, -1, -1)
 
-        output, attn_w = scaled_dot_product_attention(Q, K, V, mask)
-        self.attn_weights = attn_w.detach()      # save for visualization
+        # 🎯 3. PASS THE DROPOUT MODULE INTO THE FUNCTION
+        output, attn_w = scaled_dot_product_attention(
+            Q, K, V, mask, dropout=self.dropout
+        )
+        self.attn_weights = attn_w.detach()      
 
-        output = self._merge_heads(output)       # [batch, seq_q, d_model]
+        output = self._merge_heads(output)       
         return self.W_o(output)
 
 
